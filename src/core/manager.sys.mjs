@@ -1023,7 +1023,9 @@ class Manager {
     // If repository is potentially a host repo for more mods, delete the parent dir and leave the selected one.
     const isHostRepo = zipEntries.filter((entry) => entry.endsWith("theme.json")).length > 1;
     if (isHostRepo && repo.folder !== "") {
-      const tempFolder = PathUtils.join(utils.modsDir, "temp");
+      // Mods update in parallel, so each one needs its own temporary folder.
+      const tempFolder = PathUtils.join(utils.modsDir, `temp-${newThemeData.id}`);
+      await IOUtils.remove(tempFolder, { recursive: true });
       await IOUtils.move(PathUtils.join(themeFolder, ...repo.folder.split("/")), tempFolder);
       await IOUtils.remove(themeFolder, { recursive: true });
       await IOUtils.move(tempFolder, themeFolder);
