@@ -122,14 +122,12 @@ class Manager {
   appendInterfaceToDOM(window) {
     const addUnloadListener = this.addUnloadListener.bind(this);
     window.addUnloadListener = (callback, scriptPath) => {
-      let script;
-
       // Only allow custom script paths if it's from a trusted file.
-      if (script === "chrome://userscripts/content/services/module_loader.mjs") {
-        script = scriptPath;
-      } else {
-        script = Components.stack.caller?.filename.split("?")[0];
-      }
+      const caller = Components.stack.caller?.filename.split("?")[0];
+      const script =
+        caller === "chrome://userscripts/content/services/module_loader.mjs" && scriptPath
+          ? scriptPath
+          : caller;
 
       if (script) {
         addUnloadListener(script, window, callback);
@@ -166,8 +164,9 @@ class Manager {
    *
    * @param {boolean} rebuildJS - If true, will load/reload JavaScript.
    * @param {boolean} reloadStyles - If true, will load/reload styles.
+   * @param {boolean} injectIntoWindows - If false, open windows are left to the window listener.
    */
-  async rebuildMods(rebuildJS = true, reloadStyles = true) {
+  async rebuildMods(rebuildJS = true, reloadStyles = true, injectIntoWindows = true) {
     if (Services.prefs.getBoolPref("sine.mods.disable-all", false)) {
       return;
     }
@@ -204,6 +203,10 @@ class Manager {
         }
       }
     }
+
+    // At startup the window listener loads mods into every window, so injecting here as well
+    // can load them twice.
+    if (!injectIntoWindows) return;
 
     // TODO: Only refresh scripts that must be refreshed.
     const processes = utils.getProcesses();
@@ -382,14 +385,15 @@ class Manager {
 
         for (const scriptPath of Object.keys(scripts)) {
           if (scriptPath.endsWith(".uc.js")) {
+            const chromePath = `chrome://sine/content/${scriptPath}`;
+            // Record the load so a later rebuild doesn't run a second copy in this window.
+            if (this.#unloadListeners.get(chromePath)?.has(window)) continue;
             try {
-              Services.scriptloader.loadSubScriptWithOptions(
-                `chrome://sine/content/${scriptPath}`,
-                {
-                  target: window,
-                  ignoreCache: true,
-                }
-              );
+              this.addUnloadListener(chromePath, window, null);
+              Services.scriptloader.loadSubScriptWithOptions(chromePath, {
+                target: window,
+                ignoreCache: true,
+              });
             } catch (err) {
               console.error(`[Sine:Manager]: Failed to load script "${scriptPath}":`, err);
             }

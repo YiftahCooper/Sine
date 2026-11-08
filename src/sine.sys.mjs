@@ -56,7 +56,8 @@ const Sine = {
       await IOUtils.writeJSON(utils.modsDataFile, {});
     }
 
-    manager.rebuildMods();
+    // Windows get their mods from the window listener registered above.
+    manager.rebuildMods(true, true, false);
 
     // Check for mod updates.
     manager.updateMods("auto");
