@@ -101,11 +101,16 @@ class Manager {
    * @param {Window} window - Window to remove unload listeners from.
    */
   removeListenersForDOM(window) {
-    for (const listeners of this.#unloadListeners.values()) {
+    for (const [script, listeners] of this.#unloadListeners) {
       if (listeners.has(window)) {
         const windowListener = listeners.get(window);
         if (windowListener) {
-          windowListener();
+          // One script failing to unload must not stop the others or keep it recorded as loaded.
+          try {
+            windowListener();
+          } catch (err) {
+            console.warn(`[Sine]: Failed to unload "${script}":`, err);
+          }
         }
 
         listeners.delete(window);
